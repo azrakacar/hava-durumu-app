@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NipponAgriMet - İleri Hava & Tarım Asistanı</title>
+    <!-- Leaflet Harita CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        body.dark {
+            --bg-gradient: linear-gradient(135deg, #050811 0%, #0f172a 50%, #1e1b4b 100%);
+            --panel-bg: rgba(13, 18, 30, 0.9);
+            --border-color: rgba(255, 255, 255, 0.08);
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --card-bg: rgba(10, 15, 25, 0.7);
+            --accent: #f43f5e;
+        }
+
+        body.light {
+            --bg-gradient: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 50%, #cbd5e1 100%);
+            --panel-bg: rgba(255, 255, 255, 0.95);
+            --border-color: rgba(0, 0, 0, 0.12);
+            --text-main: #0f172a;
+            --text-muted: #64748b;
+            --card-bg: rgba(241, 245, 249, 0.9);
+            --accent: #e11d48;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: var(--bg-gradient);
+            color: var(--text-main);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .layout {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 340px 1fr;
+            gap: 25px;
+        }
+
+        @media (max-width: 1000px) {
+            .layout { grid-template-columns: 1fr; }
+        }
+
+        .sidebar {
+            background: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            backdrop-filter: blur(16px);
+            border-radius: 24px;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            height: fit-content;
+        }
+
+        .brand h2 { font-size: 1.4rem; color: var(--text-main); display: flex; align-items: center; gap: 8px; }
+        .brand p { font-size: 0.75rem; color: var(--text-muted); margin-top: 2px; }
+
+        .control-group label {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            font-weight: 600;
+            text-transform: uppercase;
+            display: block;
+            margin-bottom: 8px;
+        }
+
+        select {
+            width: 100%;
+            padding: 12px 14px;
+            border-radius: 12px;
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            font-size: 0.95rem;
+            outline: none;
+            cursor: pointer;
+        }
+
+        /* Harita Alanı */
+        #map {
+            width: 100%;
+            height: 220px;
+            border-radius: 14px;
+            border: 1px solid var(--border-color);
+            z-index: 1;
+        }
+
+        .city-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            max-height: 180px;
+            overflow-y: auto;
+        }
+
+        .quick-btn {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            padding: 8px;
+            border-radius: 10px;
+            color: var(--text-muted);
+            font-size: 0.8rem;
+            text-align: left;
+            cursor: pointer;
+        }
+        .quick-btn:hover { color: var(--text-main); border-color: var(--accent); }
+
+        .theme-toggle-btn {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            padding: 12px;
+            border-radius: 12px;
+            cursor: pointer;
+            font-weight: 600;
+            text-align: center;
+        }
+
+        .main-content {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .card {
+            background: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            backdrop-filter: blur(16px);
+            border-radius: 24px;
+            padding: 30px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.15);
+        }
+
+        .welcome-card h1 { font-size: 1.9rem; margin-bottom: 12px; color: var(--text-main); }
+        .welcome-card p { color: var(--text-muted); line-height: 1.6; margin-bottom: 20px; font-size: 0.95rem; }
+        
+        .welcome-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            margin-top: 15px;
+        }
+        @media(max-width: 800px) { .welcome-grid { grid-template-columns: 1fr; } }
+
+        .welcome-box {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            padding: 18px;
+            border-radius: 16px;
+        }
+        .welcome-box h3 { font-size: 1rem; color: var(--accent); margin-bottom: 6px; }
+        .welcome-box p { font-size: 0.85rem; color: var(--text-muted); margin: 0; }
+
+        .weather-panel { display: none; animation: fadeIn 0.4s ease; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        .hero {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 25px;
+            margin-bottom: 25px;
+        }
+        .hero h2 { font-size: 2.2rem; color: var(--text-main); }
+        .region-tag { color: var(--accent); font-weight: 600; font-size: 0.9rem; text-transform: uppercase; }
+        .temp-big { font-size: 3.5rem; font-weight: bold; color: var(--text-main); }
+
+        .tree-info-banner {
+            background: var(--card-bg);
+            border-left: 4px solid var(--accent);
+            padding: 16px 20px;
+            border-radius: 12px;
+            margin-bottom: 25px;
+            display: flex;
+            gap: 14px;
+            align-items: flex-start;
+        }
+        .tree-info-banner .tree-icon { font-size: 1.8rem; }
+        .tree-info-banner h4 { font-size: 0.9rem; color: var(--accent); margin-bottom: 4px; text-transform: uppercase; }
+        .tree-info-banner p { font-size: 0.88rem; color: var(--text-muted); line-height: 1.5; margin: 0; }
+
+        .agro-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+        @media(max-width: 700px) { .agro-grid { grid-template-columns: 1fr; } }
+
+        .agro-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 18px;
+            padding: 20px;
+        }
+        .agro-title { font-size: 0.85rem; color: var(--text-muted); text-transform: uppercase; margin-bottom: 8px; font-weight: 600; }
+        .agro-status { font-size: 1.1rem; font-weight: bold; margin-bottom: 6px; }
+        .status-ok { color: #10b981; }
+        .status-no { color: #ef4444; }
+        .agro-desc { font-size: 0.85rem; color: var(--text-muted); line-height: 1.4; }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+        @media(max-width: 800px) { .metrics-grid { grid-template-columns: repeat(2, 1fr); } }
+
+        .metric-box {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            padding: 16px;
+            border-radius: 16px;
+        }
+        .metric-box span { font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; display: block; margin-bottom: 6px; }
+        .metric-box strong { font-size: 1.15rem; color: var(--text-main); }
+
+        .section-title { font-size: 0.9rem; color: var(--text-muted); text-transform: uppercase; margin-bottom: 12px; font-weight: 600; }
+        .hourly-scroll {
+            display: flex;
+            gap: 12px;
+            overflow-x: auto;
+            padding-bottom: 10px;
+            margin-bottom: 25px;
+        }
+        .hour-box {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            min-width: 85px;
+            padding: 12px;
+            border-radius: 14px;
+            text-align: center;
+        }
+        .hour-box .time { font-size: 0.75rem; color: var(--text-muted); margin-bottom: 6px; }
+        .hour-box .icon { font-size: 1.3rem; margin-bottom: 6px; }
+        .hour-box .temp { font-size: 1rem; font-weight: bold; color: var(--text-main); }
+
+        .daily-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-bottom: 25px;
+        }
+        .day-row {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            padding: 14px 18px;
+            border-radius: 14px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .day-date { font-weight: 600; font-size: 0.95rem; color: var(--text-main); width: 110px; }
+        .day-cond { display: flex; align-items: center; gap: 8px; font-size: 0.9rem; color: var(--text-muted); }
+        .day-temps { font-weight: bold; color: var(--text-main); }
+
+        .loader { text-align: center; padding: 40px; color: var(--text-muted); display: none; font-size: 1rem; }
+    </style>
+</head>
+<body class="dark">
+
+<div class="layout">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <div class="brand">
+            <h2>🇯🇵 NipponAgriMet</h2>
+            <p>Japonya & Dünya İklim Merkezi</p>
+        </div>
+
+        <div class="control-group">
+            <label for="citySelect">Merkez / Şehir Seçin</label>
+            <select id="citySelect" onchange="loadWeather(this.value)">
+                <option value="">-- Şehir Seçiniz --</option>
+                <optgroup label="🌍 Dünya & Türkiye Şehirleri">
+                    <option value="Istanbul">İstanbul (Türkiye)</option>
+                    <option value="Ankara">Ankara (Türkiye)</option>
+                    <option value="Rome">Roma (İtalya)</option>
+                    <option value="Milan">Milano (İtalya)</option>
+                    <option value="Paris">Paris (Fransa)</option>
+                    <option value="London">Londra (İngiltere)</option>
+                </optgroup>
+                <optgroup label="🇯🇵 Japonya 47 Valilik">
+                    <option value="Sapporo">Sapporo (Hokkaido)</option>
+                    <option value="Aomori">Aomori</option>
+                    <option value="Morioka">Morioka</option>
+                    <option value="Sendai">Sendai</option>
+                    <option value="Akita">Akita</option>
+                    <option value="Yamagata">Yamagata</option>
+                    <option value="Fukushima">Fukushima</option>
+                    <option value="Tokyo">Tokyo</option>
+                    <option value="Yokohama">Yokohama</option>
+                    <option value="Utsunomiya">Utsunomiya</option>
+                    <option value="Maebashi">Maebashi</option>
+                    <option value="Saitama">Saitama</option>
+                    <option value="Chiba">Chiba</option>
+                    <option value="Mito">Mito</option>
+                    <option value="Niigata">Niigata</option>
+                    <option value="Toyama">Toyama</option>
+                    <option value="Kanazawa">Kanazawa</option>
+                    <option value="Fukui">Fukui</option>
+                    <option value="Kofu">Kofu</option>
+                    <option value="Nagano">Nagano</option>
+                    <option value="Gifu">Gifu</option>
+                    <option value="Shizuoka">Shizuoka</option>
+                    <option value="Nagoya">Nagoya</option>
+                    <option value="Kyoto">Kyoto</option>
+                    <option value="Osaka">Osaka</option>
+                    <option value="Kobe">Kobe</option>
+                    <option value="Nara">Nara</option>
+                    <option value="Otsu">Otsu</option>
+                    <option value="Wakayama">Wakayama</option>
+                    <option value="Tsu">Tsu</option>
+                    <option value="Tottori">Tottori</option>
+                    <option value="Matsue">Matsue</option>
+                    <option value="Okayama">Okayama</option>
+                    <option value="Hiroshima">Hiroshima</option>
+                    <option value="Yamaguchi">Yamaguchi</option>
+                    <option value="Tokushima">Tokushima</option>
+                    <option value="Takamatsu">Takamatsu</option>
+                    <option value="Matsuyama">Matsuyama</option>
+                    <option value="Kochi">Kochi</option>
+                    <option value="Fukuoka">Fukuoka</option>
+                    <option value="Saga">Saga</option>
+                    <option value="Nagasaki">Nagasaki</option>
+                    <option value="Kumamoto">Kumamoto</option>
+                    <option value="Oita">Oita</option>
+                    <option value="Miyazaki">Miyazaki</option>
+                    <option value="Kagoshima">Kagoshima</option>
+                    <option value="Okinawa">Okinawa</option>
+                </optgroup>
+            </select>
+        </div>
+
+        <!-- İnteraktif Harita Alanı -->
+        <div class="control-group">
+            <label>Harita Üzerinden Seç</label>
+            <div id="map"></div>
+        </div>
+
+        <div class="control-group">
+            <label>Popüler Merkezler</label>
+            <div class="city-grid">
+                <button class="quick-btn" onclick="quickSelect('Istanbul')">İstanbul</button>
+                <button class="quick-btn" onclick="quickSelect('Rome')">Roma</button>
+                <button class="quick-btn" onclick="quickSelect('Tokyo')">Tokyo</button>
+                <button class="quick-btn" onclick="quickSelect('Kyoto')">Kyoto</button>
+                <button class="quick-btn" onclick="quickSelect('Paris')">Paris</button>
+                <button class="quick-btn" onclick="quickSelect('London')">Londra</button>
+            </div>
+        </div>
+
+        <button class="theme-toggle-btn" onclick="toggleTheme()">🌓 Tema Değiştir</button>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <div id="welcomeCard" class="card welcome-card">
+            <h1>🌸 Küresel Hava & Tarım Asistanı</h1>
+            <p>Japonya'nın 47 valiliği ile birlikte Türkiye, İtalya, Fransa ve İngiltere gibi popüler merkezlerin anlık uydu verilerini, ekosistem analizlerini ve akıllı tarım kararlarını keşfedin.</p>
+            
+            <div class="welcome-grid">
+                <div class="welcome-box">
+                    <h3>🗺️ İnteraktif Harita Desteği</h3>
+                    <p>Sol menüdeki harita üzerinden dilediğiniz şehre pinleyerek anında detaylı rapora ulaşabilirsiniz.</p>
+                </div>
+                <div class="welcome-box">
+                    <h3>🌱 Akıllı Tarım Kararları</h3>
+                    <p>Sulama yasakları, ilaçlama uyarıları ve bölgesel bitki/ağaç analizleri bir arada.</p>
+                </div>
+            </div>
+
+            <div class="section-title" style="margin-top: 25px;">Bölgesel Hızlı Kuşaklar</div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-top: 10px;">
+                <div class="welcome-box" style="cursor: pointer;" onclick="quickSelect('Istanbul')">
+                    <h3 style="font-size: 0.9rem;">🇹🇷 İstanbul</h3>
+                    <p>Zeytin ve boğaziçi iklim örtüsü.</p>
+                </div>
+                <div class="welcome-box" style="cursor: pointer;" onclick="quickSelect('Rome')">
+                    <h3 style="font-size: 0.9rem;">🇮🇹 Roma</h3>
+                    <p>Akdeniz çamları ve zeytinlikler.</p>
+                </div>
+                <div class="welcome-box" style="cursor: pointer;" onclick="quickSelect('Tokyo')">
+                    <h3 style="font-size: 0.9rem;">🇯🇵 Tokyo</h3>
+                    <p>Ginkgo ve ova ekosistemi.</p>
+                </div>
+                <div class="welcome-box" style="cursor: pointer;" onclick="quickSelect('London')">
+                    <h3 style="font-size: 0.9rem;">🇬🇧 Londra</h3>
+                    <p>Okyanusal iklim ve çınarlar.</p>
+                </div>
+            </div>
+        </div>
+
+        <div id="loader" class="loader">Veriler yükleniyor...</div>
+
+        <div id="weatherPanel" class="card weather-panel">
+            <div class="hero">
+                <div>
+                    <span id="resRegion" class="region-tag">Bölge</span>
+                    <h2 id="resCity">Şehir</h2>
+                    <p id="resCondition" style="color: var(--text-muted); margin-top: 4px;">Durum</p>
+                </div>
+                <div class="hero-right">
+                    <div class="temp-big"><span id="resTemp">--</span>°C</div>
+                    <div style="font-size: 1.5rem;" id="resIcon">☀️</div>
+                </div>
+            </div>
+
+            <!-- Ağaç ve Doğa Bilgisi Banner'ı -->
+            <div class="tree-info-banner">
+                <div class="tree-icon">🌲</div>
+                <div>
+                    <h4>Bölgesel Doğa & Ağaç Analizi</h4>
+                    <p id="resTreeInfo">Yükleniyor...</p>
+                </div>
+            </div>
+
+            <!-- Sulama ve İlaçlama Karar Paneli -->
+            <div class="agro-grid">
+                <div class="agro-card">
+                    <div class="agro-title">🌱 Sulama Planı Önerisi</div>
+                    <div id="resIrrigation" class="agro-status">Yükleniyor...</div>
+                    <div id="resIrrigationReason" class="agro-desc">Analiz ediliyor...</div>
+                </div>
+                <div class="agro-card">
+                    <div class="agro-title">🧪 İlaçlama / Püskürtme Kararı</div>
+                    <div id="resSpraying" class="agro-status">Yükleniyor...</div>
+                    <div id="resSprayingReason" class="agro-desc">Analiz ediliyor...</div>
+                </div>
+            </div>
+
+            <!-- Detaylı Metrikler -->
+            <div class="metrics-grid">
+                <div class="metric-box">
+                    <span>Hissedilen</span>
+                    <strong id="resFeel">--</strong>
+                </div>
+                <div class="metric-box">
+                    <span>Rüzgar Yönü & Hızı</span>
+                    <strong id="resWind">--</strong>
+                </div>
+                <div class="metric-box">
+                    <span>Görüş Mesafesi</span>
+                    <strong id="resVisibility">--</strong>
+                </div>
+                <div class="metric-box">
+                    <span>Nem Oranı</span>
+                    <strong id="resHumidity">--</strong>
+                </div>
+                <div class="metric-box">
+                    <span>Bulut Oranı</span>
+                    <strong id="resCloud">--</strong>
+                </div>
+                <div class="metric-box">
+                    <span>Atmosfer Basıncı</span>
+                    <strong id="resPressure">--</strong>
+                </div>
+                <div class="metric-box">
+                    <span>Gün Doğumu</span>
+                    <strong id="resSunrise">--</strong>
+                </div>
+                <div class="metric-box">
+                    <span>Gün Batımı</span>
+                    <strong id="resSunset">--</strong>
+                </div>
+                <div class="metric-box">
+                    <span>AI Asistan Tavsiyesi</span>
+                    <strong id="resAi" style="font-size: 0.85rem; font-weight: normal; color: var(--text-muted);">--</strong>
+                </div>
+            </div>
+
+            <!-- Saatlik Tahmin -->
+            <div class="section-title">24 Saatlik Akış</div>
+            <div class="hourly-scroll" id="hourlyContainer"></div>
+
+            <!-- 10 Günlük Tahmin -->
+            <div class="section-title">10 Günlük Detaylı Tahmin Raporu</div>
+            <div class="daily-list" id="dailyContainer"></div>
+        </div>
+    </main>
+</div>
+
+<!-- Leaflet Harita JS Kütüphanesi -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+    // Haritayı Başlat (Avrupa ve Asya'yı görecek şekilde orta odaklı)
+    const map = L.map('map').setView([41.0, 35.0], 3);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 18,
+        attribution: '© OpenStreetMap'
+    }).addTo(map);
+
+    // Tüm Şehirlerin Koordinat ve İsim Verileri (Harita Pinleri İçin)
+    const locations = [
+        { name: "Istanbul", lat: 41.0082, lon: 28.9784, label: "İstanbul (Türkiye)" },
+        { name: "Ankara", lat: 39.9334, lon: 32.8597, label: "Ankara (Türkiye)" },
+        { name: "Rome", lat: 41.9028, lon: 12.4964, label: "Roma (İtalya)" },
+        { name: "Milan", lat: 45.4642, lon: 9.1900, label: "Milano (İtalya)" },
+        { name: "Paris", lat: 48.8566, lon: 2.3522, label: "Paris (Fransa)" },
+        { name: "London", lat: 51.5074, lon: -0.1278, label: "Londra (İngiltere)" },
+        { name: "Tokyo", lat: 35.6762, lon: 139.6503, label: "Tokyo (Japonya)" },
+        { name: "Kyoto", lat: 35.0116, lon: 135.7681, label: "Kyoto (Japonya)" },
+        { name: "Osaka", lat: 34.6937, lon: 135.5022, label: "Osaka (Japonya)" },
+        { name: "Sapporo", lat: 43.0618, lon: 141.3545, label: "Sapporo (Japonya)" },
+        { name: "Okinawa", lat: 26.2124, lon: 127.6809, label: "Okinawa (Japonya)" }
+    ];
+
+    // Haritaya Pinleri Yerleştir
+    locations.forEach(loc => {
+        const marker = L.marker([loc.lat, loc.lon]).addTo(map);
+        marker.bindPopup(`<b>${loc.label}</b><br><button onclick="quickSelect('${loc.name}')" style="margin-top:5px; padding:4px 8px; background:#f43f5e; color:#fff; border:none; border-radius:4px; cursor:pointer;">Hava Durumunu Aç</button>`);
+    });
+
+    function toggleTheme() {
+        const body = document.body;
+        if (body.classList.contains('dark')) {
+            body.classList.remove('dark');
+            body.classList.add('light');
+        } else {
+            body.classList.remove('light');
+            body.classList.add('dark');
+        }
+    }
+
+    function quickSelect(city) {
+        document.getElementById('citySelect').value = city;
+        loadWeather(city);
+    }
+
+    async function loadWeather(city) {
+        if (!city) return;
+
+        const welcomeCard = document.getElementById('welcomeCard');
+        const loader = document.getElementById('loader');
+        const weatherPanel = document.getElementById('weatherPanel');
+
+        welcomeCard.style.display = 'none';
+        weatherPanel.style.display = 'none';
+        loader.style.display = 'block';
+
+        try {
+            const response = await fetch(`/api/weather/${city}`);
+            const data = await response.json();
+
+            document.getElementById('resCity').innerText = data.city;
+            document.getElementById('resRegion').innerText = data.region + " Bölgesi";
+            document.getElementById('resTreeInfo').innerText = data.treeInfo;
+            document.getElementById('resTemp').innerText = data.temp;
+            document.getElementById('resCondition').innerText = data.condition;
+            document.getElementById('resIcon').innerText = data.icon;
+            document.getElementById('resFeel').innerText = data.feelsLike + "°C";
+            document.getElementById('resWind').innerText = `${data.windDirText} (${data.windSpeed} km/s)`;
+            document.getElementById('resVisibility').innerText = data.visibility + " km";
+            document.getElementById('resHumidity').innerText = data.humidity + "%";
+            document.getElementById('resCloud').innerText = data.cloudCover + "%";
+            document.getElementById('resPressure').innerText = data.pressure + " hPa";
+            document.getElementById('resSunrise').innerText = data.sunrise;
+            document.getElementById('resSunset').innerText = data.sunset;
+            document.getElementById('resAi').innerText = data.aiAdvice;
+
+            const irrEl = document.getElementById('resIrrigation');
+            irrEl.innerText = data.agricultural.irrigation;
+            irrEl.className = "agro-status " + (data.agricultural.irrigation.includes("YAPAYIN") ? "status-no" : "status-ok");
+            document.getElementById('resIrrigationReason').innerText = data.agricultural.irrigationReason;
+
+            const sprEl = document.getElementById('resSpraying');
+            sprEl.innerText = data.agricultural.spraying;
+            sprEl.className = "agro-status " + (data.agricultural.spraying.includes("YAPAYIN") || data.agricultural.spraying.includes("RİSKLİ") ? "status-no" : "status-ok");
+            document.getElementById('resSprayingReason').innerText = data.agricultural.sprayingReason;
+
+            const hourlyCont = document.getElementById('hourlyContainer');
+            hourlyCont.innerHTML = '';
+            data.hourly.forEach(h => {
+                hourlyCont.innerHTML += `
+                    <div class="hour-box">
+                        <div class="time">${h.time}</div>
+                        <div class="icon">${h.icon}</div>
+                        <div class="temp">${h.temp}°C</div>
+                    </div>
+                `;
+            });
+
+            const dailyCont = document.getElementById('dailyContainer');
+            dailyCont.innerHTML = '';
+            data.daily.forEach(d => {
+                dailyCont.innerHTML += `
+                    <div class="day-row">
+                        <div class="day-date">${d.date}</div>
+                        <div class="day-cond">${d.icon} ${d.condition} (Yağış: ${d.rainSum} mm)</div>
+                        <div class="day-temps">${d.maxTerm || d.maxTemp}°C / ${d.minTemp}°C</div>
+                    </div>
+                `;
+            });
+
+            loader.style.display = 'none';
+            weatherPanel.style.display = 'block';
+        } catch (error) {
+            loader.style.display = 'none';
+            welcomeCard.style.display = 'block';
+            alert('Veriler çekilirken bir hata oluştu.');
+        }
+    }
+</script>
+
+</body>
+</html>
