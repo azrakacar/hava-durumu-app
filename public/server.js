@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const axios = require('axios');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -92,10 +93,10 @@ app.get('/api/weather/:city', async (req, res) => {
     }
 
     try {
-        const response = await fetch(
+        const apiResponse = await axios.get(
             `https://api.open-meteo.com/v1/forecast?latitude=${coords.lat}&longitude=${coords.lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m,wind_direction_10m,surface_pressure,cloud_cover,visibility&hourly=temperature_2m,relative_humidity_2m,wind_speed_10m,weather_code&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,precipitation_sum&timezone=auto`
         );
-        const data = await response.json();
+        const data = apiResponse.data;
         const current = data.current;
         const daily = data.daily;
 
@@ -104,7 +105,7 @@ app.get('/api/weather/:city', async (req, res) => {
             if (code >= 1 && code <= 3) return { text: "Parçalı Bulutlu", icon: "⛅", advice: "Hava hafif bulutlu. Doğa yürüyüşleri ve ağaç gözlemleri için son derece keyifli bir ortam var." };
             if (code >= 45 && code <= 48) return { text: "Sisli / Puslu", icon: "🌫️", advice: "Ortamda sis hâkim. Görüş mesafesi düşük olduğu için trafikte ve park yollarında dikkatli ol." };
             if (code >= 51 && code <= 67) return { text: "Yağmurlu", icon: "🌧️", advice: "Yağmur geçişleri var! Dışarı çıkmadan önce mutlaka şemsiyeni yanına al, yapraklara can suyu oluyor." };
-            if (code >= 71 && code <= 77) return { text: "Karlı", icon: "❄️️", advice: "Bölgeye kar yağıyor! Sıkı montunu giyin ve ağaçlardaki kar yüküne dikkat edin." };
+            if (code >= 71 && code <= 77) return { text: "Karlı", icon: "❄", advice: "Bölgeye kar yağıyor! Sıkı montunu giyin ve ağaçlardaki kar yüküne dikkat edin." };
             if (code >= 95) return { text: "Fırtınalı", icon: "⚡", advice: "Şiddetli fırtına uyarısı! Açık alandaki ağaçlardan ve devrilme riskinden uzak dur." };
             return { text: "Normal", icon: "🌤️", advice: "Hava dengeli, günlük planına güvenle devam edebilirsin." };
         }
@@ -180,7 +181,8 @@ app.get('/api/weather/:city', async (req, res) => {
         });
 
     } catch (error) {
-        res.status(500).json({ error: 'Veri çekilemedi.' });
+        console.error("API Hatası Detayı:", error.message);
+        res.status(500).json({ error: 'Veri çekilemedi.', details: error.message });
     }
 });
 
